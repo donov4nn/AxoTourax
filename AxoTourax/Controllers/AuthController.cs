@@ -47,7 +47,12 @@ namespace AxoTourax.Controllers
             var newUser = new IdentityUser { Email = user.Email, UserName = user.Email };
             var isCreated = await _userManager.CreateAsync(newUser , user.Password);
 
-            if (isCreated.Succeeded) return Ok(await GenerateJwtTokenAsync(newUser));
+            if (isCreated.Succeeded)
+            {
+                var currentUser = await _userManager.FindByEmailAsync(newUser.Email);
+                await _userManager.AddToRoleAsync(currentUser, Role.Anonymous);
+                return Ok(await GenerateJwtTokenAsync(newUser));
+            }
 
             return BadRequest($"An error happened while creating your account : {isCreated.GetErrors()}");
         }
@@ -103,9 +108,9 @@ namespace AxoTourax.Controllers
         {
             var roles = new List<IdentityRole>
             {
-                new() {Name = "Anonymous"},
-                new() {Name = "Contributor"},
-                new() {Name = "Admin"},
+                new() {Name = Role.Anonymous},
+                new() {Name = Role.Contributor},
+                new() {Name = Role.Admin},
             };
 
             foreach(var role in roles)
@@ -113,6 +118,12 @@ namespace AxoTourax.Controllers
                 if (!await _roleManager.RoleExistsAsync(role.Name))
                     await _roleManager.CreateAsync(role);
             }
+        }
+
+        private async Task AddAdminRolesAsync(string adminEmail)
+        {
+            var currentUser = await _userManager.FindByEmailAsync(adminEmail);
+            await _userManager.AddToRoleAsync(currentUser , Role.Admin);
         }
     }
 }

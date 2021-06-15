@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace AxoTourax.Models
 {
-    public static class Helpers
+    public static class Helper
     {
         public static string GetErrors(this IdentityResult error)
         {
