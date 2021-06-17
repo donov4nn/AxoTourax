@@ -1,6 +1,5 @@
 ﻿using AxoTourax.Configuration;
 using AxoTourax.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -17,7 +16,6 @@ namespace AxoTourax.Controllers
 {
     [Route("api/[controller]")] // api/auth
     [ApiController]
-    [AllowAnonymous]
     // [Authorize(Roles = "Admin")]
     // [Authorize]   // just require any authentication
     public class AuthController : ControllerBase
@@ -37,12 +35,12 @@ namespace AxoTourax.Controllers
         }
 
         [HttpPost]
-        [Route("Register")]
+        [Route("register")]
         public async Task<IActionResult> Register([FromBody] User user)
         {
             var existingUser = await _userManager.FindByEmailAsync(user.Email);
 
-            if (existingUser != null) return BadRequest("Email already used");
+            if (existingUser != null) return BadRequest(new { Message = "Email already used" });
 
             var newUser = new IdentityUser { Email = user.Email, UserName = user.Email };
             var isCreated = await _userManager.CreateAsync(newUser , user.Password);
@@ -51,38 +49,31 @@ namespace AxoTourax.Controllers
             {
                 var currentUser = await _userManager.FindByEmailAsync(newUser.Email);
                 await _userManager.AddToRoleAsync(currentUser, Role.Anonymous);
-                return Ok(await GenerateJwtTokenAsync(newUser));
+                return Ok(new { Token = await GenerateJwtTokenAsync(newUser) });
             }
 
-            return BadRequest($"An error happened while creating your account : {isCreated.GetErrors()}");
+            return BadRequest(new { Message = $"An error happened while creating your account : {isCreated.GetErrors()}" });
         }
 
         [HttpPost]
-        [Route("Login")]
+        [Route("login")]
         public async Task<IActionResult> Login(User user)
         {
             var existingUser = await _userManager.FindByEmailAsync(user.Email);
 
-            if (existingUser == null) return BadRequest("Can't find account with this email");
+            if (existingUser == null) return BadRequest(new { Message = "Can't find account with this email" });
 
             bool isCorrect = await _userManager.CheckPasswordAsync(existingUser , user.Password);
 
-            if (!isCorrect) return BadRequest("Invalid password");
+            if (!isCorrect) return BadRequest(new { Message = "Invalid password" });
 
-            return Ok(await GenerateJwtTokenAsync(existingUser));
+            return Ok(new { Token = await GenerateJwtTokenAsync(existingUser) });
         }
 
         private async Task<string> GenerateJwtTokenAsync(IdentityUser user)
         {
             var jwtTokenHandler = new JwtSecurityTokenHandler();
-
             var key = Encoding.ASCII.GetBytes(_jwtConfig.Secret);
-
-            var tokenDescriptor = new SecurityTokenDescriptor
-            {
-                Expires = DateTime.UtcNow.AddHours(1),
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key) , SecurityAlgorithms.HmacSha256Signature)
-            };
 
             var claims = new List<Claim>
             {
@@ -96,8 +87,13 @@ namespace AxoTourax.Controllers
                 claims.Add(new Claim(ClaimTypes.Role, roleName));
             }
 
-            tokenDescriptor.Subject = new ClaimsIdentity(claims);
-
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Expires = DateTime.UtcNow.AddHours(1),
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key) , SecurityAlgorithms.HmacSha256Signature),
+                Subject = new ClaimsIdentity(claims)
+            };
+            
             var token = jwtTokenHandler.CreateToken(tokenDescriptor);
             var jwtToken = jwtTokenHandler.WriteToken(token);
 
@@ -106,24 +102,17 @@ namespace AxoTourax.Controllers
 
         private async Task CreateRolesAsync()
         {
-            var roles = new List<IdentityRole>
-            {
-                new() {Name = Role.Anonymous},
-                new() {Name = Role.Contributor},
-                new() {Name = Role.Admin},
-            };
+            var roles = Role.GetAll();
 
             foreach(var role in roles)
-            {
-                if (!await _roleManager.RoleExistsAsync(role.Name))
-                    await _roleManager.CreateAsync(role);
-            }
+                if (!await _roleManager.RoleExistsAsync(role))
+                    await _roleManager.CreateAsync(new IdentityRole { Name = role });
         }
 
         private async Task AddAdminRolesAsync(string adminEmail)
         {
             var currentUser = await _userManager.FindByEmailAsync(adminEmail);
-            await _userManager.AddToRoleAsync(currentUser , Role.Admin);
+            await _userManager.AddToRolesAsync(currentUser , Role.GetAll());
         }
     }
 }

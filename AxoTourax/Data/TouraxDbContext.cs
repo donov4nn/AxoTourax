@@ -8,6 +8,5 @@ namespace AxoTourax.Data
         public TouraxDbContext(DbContextOptions<TouraxDbContext> options)
            : base(options) { }
 
-        //public virtual DbSet<ItemData> Items { get; set; }
     }
 }

@@ -10,5 +10,10 @@ namespace AxoTourax.Models
         public static string Anonymous = "Anonymous";
         public static string Contributor = "Contributor";
         public static string Admin = "Admin";
+
+        public static string[] GetAll()
+        {
+            return new string[3] { Anonymous, Contributor, Admin };
+        }
     }
 }

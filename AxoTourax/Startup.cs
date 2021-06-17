@@ -54,7 +54,8 @@ namespace AxoTourax
                 };
             });
 
-            services.AddIdentity<IdentityUser, IdentityRole>(/*options => options.SignIn.RequireConfirmedAccount = true*/)
+            services.AddDefaultIdentity<IdentityUser>()
+                        .AddRoles<IdentityRole>()
                         .AddEntityFrameworkStores<TouraxDbContext>();
 
             services.AddControllers()
