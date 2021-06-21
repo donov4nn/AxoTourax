@@ -13,23 +13,26 @@ using Microsoft.OpenApi.Models;
 using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Threading.Tasks;
+using AxoTourax.Models;
 
 namespace AxoTourax
 {
     public class Startup
     {
+        public IConfiguration Configuration { get; }
+
+
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
         }
 
-        public IConfiguration Configuration { get; }
-
         public void ConfigureServices(IServiceCollection services)
         {
             services.Configure<JwtConfig>(Configuration.GetSection("JwtConfig"));
 
-            services.AddDbContext<TouraxDbContext>(options =>
+            services.AddDbContext<AxoTouraxContext>(options =>
                 options.UseSqlServer(
                     Configuration.GetConnectionString("DefaultConnection")
                 ));
@@ -56,7 +59,7 @@ namespace AxoTourax
 
             services.AddDefaultIdentity<IdentityUser>()
                         .AddRoles<IdentityRole>()
-                        .AddEntityFrameworkStores<TouraxDbContext>();
+                        .AddEntityFrameworkStores<AxoTouraxContext>();
 
             services.AddControllers()
                 .AddNewtonsoftJson(opt => opt.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore);
@@ -76,7 +79,7 @@ namespace AxoTourax
             });
         }
 
-        public void Configure(IApplicationBuilder app , IWebHostEnvironment env)
+        public void Configure(IApplicationBuilder app , IWebHostEnvironment env, RoleManager<IdentityRole> roleManager, UserManager<IdentityUser> userManager)
         {
             if (env.IsDevelopment())
             {
@@ -99,6 +102,39 @@ namespace AxoTourax
             {
                 endpoints.MapControllers();
             });
+
+            Task.Run(() =>
+            {
+                string adminEmail = "admin@admin.admin";
+                CreateRolesAsync(roleManager).Wait();
+                CreateAdminUserAsync(adminEmail, userManager).Wait();
+                AddAdminRolesAsync(adminEmail, userManager).Wait();
+            }).Wait();
+        }
+
+        private async Task CreateRolesAsync(RoleManager<IdentityRole> roleManager)
+        {
+            var roles = Role.GetAll();
+
+            foreach (var role in roles)
+                if (!await roleManager.RoleExistsAsync(role))
+                    await roleManager.CreateAsync(new IdentityRole { Name = role });
+        }
+
+        private async Task CreateAdminUserAsync(string email, UserManager<IdentityUser> userManager)
+        {
+            var existingUser = await userManager.FindByEmailAsync(email);
+            if (existingUser != null) return;
+            var newUser = new IdentityUser { Email = email , UserName = email };
+            var isCreated = await userManager.CreateAsync(newUser , "Azerty1*");
+        }
+
+        private async Task AddAdminRolesAsync(string adminEmail, UserManager<IdentityUser> userManager)
+        {
+            var currentUser = await userManager.FindByEmailAsync(adminEmail);
+
+            if (currentUser != null)
+                await userManager.AddToRolesAsync(currentUser , Role.GetAll());
         }
     }
 }

@@ -7,7 +7,6 @@ using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
@@ -21,16 +20,14 @@ namespace AxoTourax.Controllers
     public class AuthController : ControllerBase
     {
         private readonly UserManager<IdentityUser> _userManager;
-        private readonly RoleManager<IdentityRole> _roleManager;
         private readonly JwtConfig _jwtConfig;
 
         public AuthController(
             UserManager<IdentityUser> userManager ,
-            IOptionsMonitor<JwtConfig> optionsMonitor,
-            RoleManager<IdentityRole> roleManager)
+            IOptionsMonitor<JwtConfig> optionsMonitor
+            )
         {
             _userManager = userManager;
-            _roleManager = roleManager;
             _jwtConfig = optionsMonitor.CurrentValue;
         }
 
@@ -93,26 +90,11 @@ namespace AxoTourax.Controllers
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key) , SecurityAlgorithms.HmacSha256Signature),
                 Subject = new ClaimsIdentity(claims)
             };
-            
+
             var token = jwtTokenHandler.CreateToken(tokenDescriptor);
             var jwtToken = jwtTokenHandler.WriteToken(token);
 
             return jwtToken;
-        }
-
-        private async Task CreateRolesAsync()
-        {
-            var roles = Role.GetAll();
-
-            foreach(var role in roles)
-                if (!await _roleManager.RoleExistsAsync(role))
-                    await _roleManager.CreateAsync(new IdentityRole { Name = role });
-        }
-
-        private async Task AddAdminRolesAsync(string adminEmail)
-        {
-            var currentUser = await _userManager.FindByEmailAsync(adminEmail);
-            await _userManager.AddToRolesAsync(currentUser , Role.GetAll());
         }
     }
 }
